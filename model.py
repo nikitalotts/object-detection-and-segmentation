@@ -11,6 +11,8 @@ from matplotlib import pyplot as plt
 from os import listdir
 from os.path import isfile, join
 from datetime import datetime
+import src.models.UnetModel
+from src.models.UnetModel import UnetModel
 from src.models.YoloModel import YoloModel
 import fire
 import torch, gc
@@ -41,8 +43,10 @@ class ODaSModel:
         os.environ['IMAGE_SIZE'] = str(640)
         os.environ['FPS'] = '5.0'
         os.environ['YOLO_MODEL_PATH'] = os.path.join(os.environ['PROJECT_FOLDER'], './src/models_store/yolo/seg_640_n.pt')
+        os.environ['UNET_MODEL_PATH'] = os.path.join(os.environ['PROJECT_FOLDER'], './src/models_store/unet/unet.pth')
         os.environ['YOLO_PRETRAINED_MODEL_TYPE'] = 'yolov8n-seg.pt'
         os.environ['YOLO_PRETRAINED_MODEL_PATH'] = os.path.join(os.environ['PROJECT_FOLDER'], f'./src/models_store/yolo/{os.environ["YOLO_PRETRAINED_MODEL_TYPE"]}')
+        os.environ['UNET_PRETRAINED_MODEL_PATH'] = os.path.join(os.environ['PROJECT_FOLDER'], f'./src/models_store/unet/unet_trained.pth')
         os.environ['YOLO_TRAIN_DATA_PATH'] = os.path.join(os.environ['PROJECT_FOLDER'], './datasets/yolo/data.yaml')
         os.environ['YOLO_RUNS_FOLDER_PATH'] = os.path.join(os.environ['PROJECT_FOLDER'], './runs')
         os.environ['YOLO_CUSTOM_TRAIN_MODEL_PATH'] = os.path.join(os.environ['YOLO_RUNS_FOLDER_PATH'], f'./{os.environ["TASK_TYPE"]}/train/weights/best.pt')
@@ -289,9 +293,7 @@ class ODaSModel:
         if model_type == 'YOLO':
             self.model_type = 'YOLO'
             if model_path is not None:
-                # self.model = YOLO(model_path, task=os.environ['TASK_TYPE'])
                 self.model = YoloModel(model_path, task=os.environ['TASK_TYPE'])
-
             elif not use_default_model:
                 self.model = YoloModel(os.environ['YOLO_MODEL_PATH'], task=os.environ['TASK_TYPE'])
                 print('loaded', os.environ['YOLO_MODEL_PATH'])
@@ -299,10 +301,17 @@ class ODaSModel:
                 self.model = YoloModel(os.environ['YOLO_PRETRAINED_MODEL_PATH'], task=os.environ['TASK_TYPE'])
                 print('loaded', os.environ['YOLO_PRETRAINED_MODEL_PATH'])
         elif model_type == 'UNET':
-            pass
+            self.model_type = 'UNET'
+            self.model = UnetModel()
+            self.model.load(model_path)
+            if model_path is not None:
+                self.model.load(model_path)
+            elif not use_default_model:
+                self.model.load(os.environ['UNET_PRETRAINED_MODEL_PATH'])
+            else:
+                self.model.load(os.environ['UNET_MODEL_PATH'])
         else:
             raise TypeError("no such model")
-    # def predict(self, path_to_dataset: str = None, model_type: str = 'YOLO', resize_only=False, no_resize=False):
 
     def predict_dataset(self, path_to_dataset: str = None, model_type: str = 'YOLO'):
         if path_to_dataset is None:
@@ -494,6 +503,12 @@ class CliWrapper(object):
         self.segmentator.realtime_detection(video, process, model_type, use_default_model, model_path)
         self.segmentator.clear_cache()
         print(f"Demo finished")
+
+    def load(self, model_type: str = 'YOLO', model_path: str = None, use_default_model: bool = False):
+        self.segmentator.setup_env()
+        self.segmentator.load_model(model_type=model_type, use_default_model=use_default_model, model_path=model_path)
+        self.segmentator.clear_cache()
+        print(f"Successfully loaded {model_type} model")
 
 
 if __name__ == "__main__":

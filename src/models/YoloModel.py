@@ -22,6 +22,6 @@ class YoloModel(BaseModel):
 
     def predict(self, source: str, task: str, save: bool, save_txt: bool, stream: bool):
         generators = self.estimator.predict(source=source, task=task, save=save, save_txt=save_txt, stream=stream)
-        for _ in generators:
+        for gen in generators:
             pass
 
