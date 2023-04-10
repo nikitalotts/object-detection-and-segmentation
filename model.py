@@ -13,6 +13,7 @@ from os.path import isfile, join
 from datetime import datetime
 from src.models.YoloModel import YoloModel
 import fire
+import torch, gc
 
 
 class ODaSModel:
@@ -47,7 +48,14 @@ class ODaSModel:
         os.environ['YOLO_CUSTOM_TRAIN_MODEL_PATH'] = os.path.join(os.environ['YOLO_RUNS_FOLDER_PATH'], f'./{os.environ["TASK_TYPE"]}/train/weights/best.pt')
         os.environ['YOLO_CUSTOM_TRAIN_MODELS_FOLDER_PATH'] = os.path.join(os.environ['OUTPUT_FOLDER'], './user_models')
         os.environ['PREDICTED_DATA_PATH'] = os.path.join(os.environ['PROJECT_FOLDER'], 'runs/segment/predict')
+        os.environ['PREDICTED_LABELS_PATH'] = os.path.join(os.environ['PROJECT_FOLDER'], 'runs/segment/predict/labels')
         os.environ['UNET_TRAIN_DATA_PATH'] = os.path.join(os.environ['PROJECT_FOLDER'], './datasets/coco/result.json')
+        os.environ['TEMP_FOLDER'] = os.path.join(os.environ['PROJECT_FOLDER'], './.temp')
+        os.environ['TEMP_IMAGE_NAME'] = 'frame'
+        os.environ['TEMP_IMAGE_FILE'] = os.path.join(os.environ['TEMP_FOLDER'], f"./{os.environ['TEMP_IMAGE_NAME']}{os.environ['FRAMES_EXTENSION']}")
+        os.environ['TEMP_LABEL_FILE'] = os.path.join(os.environ['PREDICTED_LABELS_PATH'], f"./{os.environ['TEMP_IMAGE_NAME']}.txt")
+        os.environ['PREDICTED_IMAGE_PATH'] = os.path.join(os.environ['PREDICTED_DATA_PATH'], f"./{os.environ['TEMP_IMAGE_NAME']}{os.environ['FRAMES_EXTENSION']}")
+
         isExist = os.path.exists(os.environ['INPUT_FRAMES_FOLDER'])
         if not isExist:
            os.makedirs(os.environ['INPUT_FRAMES_FOLDER'])
@@ -57,23 +65,27 @@ class ODaSModel:
         isExist = os.path.exists(os.environ['PROCESSED_FRAMES_FOLDER'])
         if not isExist:
            os.makedirs(os.environ['PROCESSED_FRAMES_FOLDER'])
+        isExist = os.path.exists(os.environ['TEMP_FOLDER'])
+        if not isExist:
+           os.makedirs(os.environ['TEMP_FOLDER'])
 
-    def split_video_into_frames(self, path_to_video):
-
-        if not os.path.exists(path_to_video):
-            raise FileExistsError('Invalid path to video file')
-
+    def get_capture(self, path_to_video: str):
         capture = cv2.VideoCapture(path_to_video)
-
-        #
-        os.environ['VIDEO_EXTENSION'] = os.path.splitext(path_to_video)[1] #
+        os.environ['VIDEO_EXTENSION'] = os.path.splitext(path_to_video)[1]  #
         os.environ['VIDEO_NAME'] = os.path.basename(path_to_video)
         os.environ['FPS'] = str(capture.get(cv2.CAP_PROP_FPS))
         # os.environ['FPS'] = str(6)
         os.environ['FRAMES_AMOUNT'] = str(int(capture.get(cv2.CAP_PROP_FRAME_COUNT)))
         os.environ['VIDEO_FRAME_WIDTH'] = str(int(capture.get(cv2.CAP_PROP_FRAME_WIDTH)))
         os.environ['VIDEO_FRAME_HEIGHT'] = str(int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT)))
-        #
+        return capture
+
+    def split_video_into_frames(self, path_to_video):
+
+        if not os.path.exists(path_to_video):
+            raise FileExistsError('Invalid path to video file')
+
+        capture = self.get_capture(path_to_video)
 
         frameNr = 0
         while (True):
@@ -108,12 +120,11 @@ class ODaSModel:
         if os.path.exists(os.environ['PROCESSED_FRAMES_FOLDER']):
             shutil.rmtree(os.environ['PROCESSED_FRAMES_FOLDER'])
 
-        if self.model_type == 'YOLO':
-            if os.path.exists(os.environ['YOLO_RUNS_FOLDER_PATH']):
-                shutil.rmtree(os.environ['YOLO_RUNS_FOLDER_PATH'])
+        if os.path.exists(os.environ['TEMP_FOLDER']):
+            shutil.rmtree(os.environ['TEMP_FOLDER'])
 
-        if self.model_type == 'UNET':
-            pass
+        if os.path.exists(os.environ['YOLO_RUNS_FOLDER_PATH']):
+            shutil.rmtree(os.environ['YOLO_RUNS_FOLDER_PATH'])
 
 
     def apply_brightness_contrast_sharpening(self, input_img, brightness = 0, contrast = 0, sharp_cyc=1, prod=False, process=True, resize=True):
@@ -266,7 +277,6 @@ class ODaSModel:
             #     'recall' : results.results_dict['metrics/recall(B)'],
             #     'f1' : results.box.f1[0]
             # }
-            print("Results", output)
             self.clear_cache()
             print('Model sucessfully evaluated')
             return output
@@ -316,7 +326,7 @@ class ODaSModel:
     def calculate_polygon_area(self, xs, ys):
         return 0.5 * np.abs(np.dot(xs, np.roll(ys, 1)) - np.dot(ys, np.roll(xs, 1)))
 
-    def handle_file(self, filepath):
+    def handle_file(self, filepath, stream=False):
         f = open(filepath, "r")
         lines = f.readlines()
 
@@ -330,8 +340,12 @@ class ODaSModel:
         for i, line in enumerate(lines):
             coords = list(map(float, line.split()[1:]))
 
-            x_coords = np.array(coords[::2]) * int(os.environ['IMAGE_SIZE'])
-            y_coords = np.array(coords[1::2]) * int(os.environ['IMAGE_SIZE'])
+            if stream:
+                x_coords = np.array(coords[::2]) * int(os.environ['VIDEO_FRAME_WIDTH'])
+                y_coords = np.array(coords[1::2]) * int(os.environ['VIDEO_FRAME_HEIGHT'])
+            else:
+                x_coords = np.array(coords[::2]) * int(os.environ['IMAGE_SIZE'])
+                y_coords = np.array(coords[1::2]) * int(os.environ['IMAGE_SIZE'])
 
             sqaure = self.calculate_polygon_area(x_coords, y_coords)
 
@@ -369,31 +383,32 @@ class ODaSModel:
         return res
 
     def add_markups(self, markups):
-        dpi = 10
-        w = int(os.environ['IMAGE_SIZE']) / (dpi*10)
-        h = int(os.environ['IMAGE_SIZE']) / (dpi*10)
-
         for markup in markups:
-            data = img.imread(markup['image_path'])
+            self.add_markup(markup)
 
-            x = markup['best_line_coords']['x'].astype(int)
-            y = markup['best_line_coords']['y'].astype(int)
-
-            fig = plt.figure(frameon=False, figsize=(w, h), dpi=dpi)
-
-            ax = plt.Axes(fig, [0., 0., 1., 1.])
-            ax.set_axis_off()
-            fig.add_axes(ax)
-
-            ax.text(270, 50, f"Est. biggest size: {round(markup['max_square'], 1)} pixels",
-                     color="white",
-                 horizontalalignment='center',
-                 verticalalignment='center')
-
-            ax.plot(x, y, color="white", linewidth=2)
-
-            ax.imshow(data, aspect='auto')
-            fig.savefig(markup['image_path'], dpi=dpi*10)
+    def add_markup(self, markup, stream=False):
+        dpi = 10
+        if stream:
+            w = int(os.environ['VIDEO_FRAME_WIDTH']) / (dpi * 10)
+            h = int(os.environ['VIDEO_FRAME_HEIGHT']) / (dpi * 10)
+        else:
+            w = int(os.environ['IMAGE_SIZE']) / (dpi * 10)
+            h = int(os.environ['IMAGE_SIZE']) / (dpi * 10)
+        data = img.imread(markup['image_path'])
+        x = markup['best_line_coords']['x'].astype(int)
+        y = markup['best_line_coords']['y'].astype(int)
+        fig = plt.figure(frameon=False, figsize=(w, h), dpi=dpi)
+        ax = plt.Axes(fig, [0., 0., 1., 1.])
+        ax.set_axis_off()
+        fig.add_axes(ax)
+        ax.text(270, 50,
+                f"Est. biggest size: {round(markup['max_square'], 1)} pixels\nNumber of abnormal clods: {markup['num_of_units']}",
+                color="white",
+                horizontalalignment='center',
+                verticalalignment='center')
+        ax.plot(x, y, color="white", linewidth=2)
+        ax.imshow(data, aspect='auto')
+        fig.savefig(markup['image_path'], dpi=dpi * 10)
 
     def proceed_info(self):
         markups = self.handle_labels_dir(os.path.join(os.environ['PREDICTED_DATA_PATH'], 'labels'))
@@ -411,6 +426,52 @@ class ODaSModel:
         self.convert_frames_into_video()
         self.clear_cache()
 
+    def realtime_detection(self, path_to_video: str, process: bool = True, model_type: str = 'YOLO', use_default_model: bool = False, model_path: str = None):
+
+        if path_to_video is None:
+            path_to_video = os.environ['PATH_TO_VIDEO']
+
+        capture = self.get_capture(path_to_video)
+
+        if model_path is not None:
+            self.load_model(model_type, model_path=model_path)
+        elif self.model is None:
+            self.load_model(model_type, use_default_model, model_path)
+
+        while capture.isOpened():
+            gc.collect()
+            torch.cuda.empty_cache()
+            ret, frame = capture.read()
+            if ret:
+                if process:
+                    frame = self.apply_brightness_contrast_sharpening(frame, int(os.environ['CONVERT_BRIGHTNESS']) + 255,
+                                                                      int(os.environ['CONVERT_CONTRAST']) + 127,
+                                                                      int(os.environ['CONVERT_SHARPENING_CYCLE']),
+                                                                      prod=True,
+                                                                      process=process, resize=False)
+                cv2.imwrite(os.environ['TEMP_IMAGE_FILE'], frame)
+                self.predict_dataset(os.environ['TEMP_IMAGE_FILE'], model_type)
+                print('temp im fil', os.environ['TEMP_LABEL_FILE'])
+                if os.path.exists(os.environ['TEMP_LABEL_FILE']):
+                    print('exist')
+                    markup = self.handle_file(os.environ['TEMP_LABEL_FILE'], stream=True)
+                    markup['image_path'] = os.environ['PREDICTED_IMAGE_PATH']
+                    os.remove(os.environ['TEMP_LABEL_FILE'])
+                    self.add_markup(markup, True)
+
+                image = cv2.imread(os.environ['PREDICTED_IMAGE_PATH'], cv2.IMREAD_COLOR)
+                cv2.imshow('Frame', image)
+                # add waitKey for video to display
+                cv2.waitKey(1)
+                if cv2.waitKey(25) == ord('q'):
+                    # do not close window, you want to show the frame
+                    # cv2.destroyAllWindows();
+                    cv2.destroyAllWindows()
+                    self.clear_cache()
+                    break
+            else:
+                break
+
 
 class CliWrapper(object):
     def __init__(self):
@@ -425,9 +486,14 @@ class CliWrapper(object):
         res = self.segmentator.evaluate(dataset, model_type, use_default_model, model_path)
         print("Results:", res)
 
-    def demo(self, video: str = None, model_type: str = 'YOLO', process: bool = False, predict_on_resized: bool = True, use_default_model: bool = False, model_path: str = None):
+    def convert(self, video: str = None, model_type: str = 'YOLO', process: bool = False, predict_on_resized: bool = True, use_default_model: bool = False, model_path: str = None):
         self.segmentator.predict_video(video, model_type, process, predict_on_resized, use_default_model, model_path)
         print(f"Video saved to {os.environ['OUTPUT_FOLDER']}")
+
+    def demo(self, video: str = None, model_type: str = 'YOLO', process: bool = True, use_default_model: bool = False, model_path: str = None):
+        self.segmentator.realtime_detection(video, process, model_type, use_default_model, model_path)
+        self.segmentator.clear_cache()
+        print(f"Demo finished")
 
 
 if __name__ == "__main__":
