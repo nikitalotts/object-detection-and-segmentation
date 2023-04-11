@@ -16,17 +16,17 @@ from src.models.UnetModel import UnetModel
 from src.models.YoloModel import YoloModel
 import fire
 import torch, gc
+from src.logger import logger
 
 
 class ODaSModel:
     def __init__(self):
+        logger.info('started ODaSModel instance init')
         self.model = None
-        # if model_type in ['YOLO', 'UNET']:
-        #     self.model_type = model_type
-        # else:
-        #     raise AttributeError("wrong model type")
+        logger.info('finished ODaSModel instance init')
 
     def setup_env(self):
+        logger.info('started venv setup')
         os.environ['PATH_TO_VIDEO'] = 'C:/Users/Acer/Machine Learning/ODaS/clodding_train.mp4'
         os.environ['PROJECT_FOLDER']  = os.path.dirname(os.path.dirname(os.path.abspath('__file__'))) + '\\ODaS'
         os.environ['INPUT_FRAMES_FOLDER'] = os.path.join(os.environ['PROJECT_FOLDER'], '.input_frames')
@@ -62,18 +62,24 @@ class ODaSModel:
 
         isExist = os.path.exists(os.environ['INPUT_FRAMES_FOLDER'])
         if not isExist:
-           os.makedirs(os.environ['INPUT_FRAMES_FOLDER'])
+            os.makedirs(os.environ['INPUT_FRAMES_FOLDER'])
+            logger.info(f"created folder {os.environ['INPUT_FRAMES_FOLDER']}")
         isExist = os.path.exists(os.environ['OUTPUT_FOLDER'])
         if not isExist:
-           os.makedirs(os.environ['OUTPUT_FOLDER'])
+            os.makedirs(os.environ['OUTPUT_FOLDER'])
+            logger.info(f"created folder {os.environ['OUTPUT_FOLDER']}")
         isExist = os.path.exists(os.environ['PROCESSED_FRAMES_FOLDER'])
         if not isExist:
-           os.makedirs(os.environ['PROCESSED_FRAMES_FOLDER'])
+            os.makedirs(os.environ['PROCESSED_FRAMES_FOLDER'])
+            logger.info(f"created folder {os.environ['PROCESSED_FRAMES_FOLDER']}")
         isExist = os.path.exists(os.environ['TEMP_FOLDER'])
         if not isExist:
-           os.makedirs(os.environ['TEMP_FOLDER'])
+            os.makedirs(os.environ['TEMP_FOLDER'])
+            logger.info(f"created folder {os.environ['TEMP_FOLDER']}")
+        logger.info('finished venv setup')
 
     def get_capture(self, path_to_video: str):
+        logger.info('started getting capture')
         capture = cv2.VideoCapture(path_to_video)
         os.environ['VIDEO_EXTENSION'] = os.path.splitext(path_to_video)[1]  #
         os.environ['VIDEO_NAME'] = os.path.basename(path_to_video)
@@ -82,10 +88,11 @@ class ODaSModel:
         os.environ['FRAMES_AMOUNT'] = str(int(capture.get(cv2.CAP_PROP_FRAME_COUNT)))
         os.environ['VIDEO_FRAME_WIDTH'] = str(int(capture.get(cv2.CAP_PROP_FRAME_WIDTH)))
         os.environ['VIDEO_FRAME_HEIGHT'] = str(int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT)))
+        logger.info('finished getting capture')
         return capture
 
     def split_video_into_frames(self, path_to_video):
-
+        logger.info('started splitting video into frames')
         if not os.path.exists(path_to_video):
             raise FileExistsError('Invalid path to video file')
 
@@ -100,24 +107,26 @@ class ODaSModel:
                 break
             frameNr = frameNr+1
         capture.release()
+        logger.info('successfully finished splitting video into frames')
 
     def convert_frames_into_video(self):
-
+        logger.info('started converting video into frames')
         if not os.path.exists(os.environ['PREDICTED_DATA_PATH']):
             raise NotADirectoryError("No such dir")
 
         files_in_folder = [f for f in os.listdir(os.environ['PREDICTED_DATA_PATH']) if f.endswith(os.environ['FRAMES_EXTENSION'])]
 
         frames = [os.path.join(os.environ['PREDICTED_DATA_PATH'],img)
-                       for img in sorted(files_in_folder, key=lambda x: int(os.path.splitext(x)[0]))]
+                  for img in sorted(files_in_folder, key=lambda x: int(os.path.splitext(x)[0]))]
 
         clip = moviepy.video.io.ImageSequenceClip.ImageSequenceClip(frames, float(os.environ['FPS']))
         save_path = os.path.join(os.environ['OUTPUT_FOLDER'], os.environ['VIDEO_NAME'])
         clip.write_videofile(save_path, audio=False)
-
+        logger.info('successfully finished converting video into frames')
         return save_path
 
     def clear_cache(self):
+        logger.info('started deleting temp files and folders')
         if os.path.exists(os.environ['INPUT_FRAMES_FOLDER']):
             shutil.rmtree(os.environ['INPUT_FRAMES_FOLDER'])
 
@@ -129,10 +138,11 @@ class ODaSModel:
 
         if os.path.exists(os.environ['YOLO_RUNS_FOLDER_PATH']):
             shutil.rmtree(os.environ['YOLO_RUNS_FOLDER_PATH'])
+        logger.info('successfully finished deleting temp files and folders')
 
 
     def apply_brightness_contrast_sharpening(self, input_img, brightness = 0, contrast = 0, sharp_cyc=1, prod=False, process=True, resize=True):
-
+        logger.info('started adding filters to image')
         if not process:
             if resize:
                 image = cv2.resize(input_img.copy(), (int(os.environ['IMAGE_SIZE']), int(os.environ['IMAGE_SIZE'])), interpolation = cv2.INTER_AREA)
@@ -176,14 +186,16 @@ class ODaSModel:
             else:
                 os.environ['IMAGE_SIZE'] = str(max(int(os.environ['VIDEO_FRAME_WIDTH']), int(os.environ['VIDEO_FRAME_HEIGHT'])))
 
+            logger.info('successfully added filters to image')
             return buf
 
     def change_frames(self, process=True, resize=True):
-
+        logger.info('started changing frames method')
         input_frames_folder = os.environ['INPUT_FRAMES_FOLDER']
         output_dir = os.environ['PROCESSED_FRAMES_FOLDER']
 
         if not os.path.exists(output_dir):
+            logger.error(f'Directory doesn\'t exist {output_dir}')
             raise NotADirectoryError("No such dir")
 
         for (i, image) in enumerate(sorted(os.listdir(input_frames_folder), key=lambda x: int(os.path.splitext(x)[0]))):
@@ -191,26 +203,30 @@ class ODaSModel:
             if (image.endswith(os.environ['FRAMES_EXTENSION'])):
                 img = cv2.imread(os.path.join(input_frames_folder, image), cv2.IMREAD_COLOR)
                 cv2.imwrite(os.path.join(output_dir, f'{i}.jpg'), self.apply_brightness_contrast_sharpening(img, int(os.environ['CONVERT_BRIGHTNESS']) + 255,
-                                                                                                             int(os.environ['CONVERT_CONTRAST']) + 127,
-                                                                                                             int(os.environ['CONVERT_SHARPENING_CYCLE']), prod=True,
-                                                                                                             process=process, resize=resize))
+                                                                                                            int(os.environ['CONVERT_CONTRAST']) + 127,
+                                                                                                            int(os.environ['CONVERT_SHARPENING_CYCLE']), prod=True,
+                                                                                                            process=process, resize=resize))
+        logger.info('changing frames method successfully executed')
 
     def apply_sharpen(self, img, n=1):
+        logger.info('started sharpening of image')
         sharpen_filter=np.array([[-1,-1,-1],
-                     [-1,9,-1],
-                    [-1,-1,-1]])
+                                 [-1,9,-1],
+                                 [-1,-1,-1]])
         sharp_image = img
         for i in range(n):
             sharp_image=cv2.filter2D(sharp_image, -1, sharpen_filter)
 
         # another way
         #     unsharped = cv2.addWeighted(img, 1.5, smoothed, -0.5, 0)
+        logger.info('successfully sharpen image')
         return sharp_image
 
     def map(self, x, in_min, in_max, out_min, out_max):
         return int((x-in_min) * (out_max-out_min) / (in_max-in_min) + out_min)
 
     def proceed_video(self, path_to_video, change_video=True):
+        logger.info('started proceed_video method')
         self.split_video_into_frames(path_to_video)
         if change_video:
             self.change_frames()
@@ -218,16 +234,21 @@ class ODaSModel:
         # predict
         self.convert_frames_into_video(change_video)
         self.clear_cache()
+        logger.info('proceed_video method successfully executed')
 
     def get_dataset_yaml_file(self, path_to_dataset):
+        logger.info('started get_dataset_yaml_file method')
         yaml_files = [f for f in os.listdir(path_to_dataset) if f.endswith('.yaml')]
         if yaml_files:
             data_file = os.path.join(path_to_dataset, yaml_files[0])
             return data_file
         else:
+            logger.error("No .yaml dataset file")
             raise FileNotFoundError('YOLO model requares .yaml dataset description')
+        logger.info('get_dataset_yaml_file method successfully executed')
 
     def save_model(self):
+        logger.info('started save_model method')
         if not os.path.exists(os.environ['YOLO_CUSTOM_TRAIN_MODELS_FOLDER_PATH']):
             os.mkdir(os.environ['YOLO_CUSTOM_TRAIN_MODELS_FOLDER_PATH'])
         if self.model_type == 'YOLO':
@@ -240,8 +261,10 @@ class ODaSModel:
             pass
         else:
             raise NotImplementedError("attempt to save wrong model type")
+        logger.info('save_model method successfully executed')
 
     def train(self, path_to_dataset: str = None, model_type: str = 'YOLO', batch_size: int = 4, n_epochs: int = 10):
+        logger.info('started train method')
         if model_type == 'YOLO':
             if self.model is None:
                 self.load_model('YOLO', use_default_model=True)
@@ -249,12 +272,12 @@ class ODaSModel:
                 path_to_dataset = os.environ['YOLO_TRAIN_DATA_PATH']
             elif path_to_dataset != os.environ['YOLO_TRAIN_DATA_PATH']:
                 path_to_dataset = self.get_dataset_yaml_file(path_to_dataset)
-            print(os.environ['YOLO_PRETRAINED_MODEL_PATH'], os.environ['TASK_TYPE'])
+            # print(os.environ['YOLO_PRETRAINED_MODEL_PATH'], os.environ['TASK_TYPE'])
             results = self.model.train(data=path_to_dataset, imgsz=int(os.environ['TRAIN_IMAGE_SIZE']),
-                             epochs=n_epochs, batch=batch_size)
+                                       epochs=n_epochs, batch=batch_size)
             self.save_model()
             self.clear_cache()
-            print('Model sucessfully trained')
+            logger.info('Model sucessfully trained')
             return results
         elif model_type == 'UNET':
             pass
@@ -262,6 +285,7 @@ class ODaSModel:
             raise TypeError("no such model")
 
     def evaluate(self, path_to_dataset: str = None, model_type: str = 'YOLO', use_default_model: bool = False, model_path: str = None):
+        logger.info('started evaluate method')
         if model_type == 'YOLO':
             if model_path is not None:
                 self.load_model('YOLO', model_path=model_path)
@@ -282,7 +306,7 @@ class ODaSModel:
             #     'f1' : results.box.f1[0]
             # }
             self.clear_cache()
-            print('Model sucessfully evaluated')
+            logger.info('Model sucessfully evaluated')
             return output
         elif model_type == 'UNET':
             pass
@@ -290,16 +314,17 @@ class ODaSModel:
             raise TypeError("no such model")
 
     def load_model(self, model_type: str = 'YOLO', use_default_model: bool = False, model_path: str = None):
+        logger.info('started load_model method')
         if model_type == 'YOLO':
             self.model_type = 'YOLO'
             if model_path is not None:
                 self.model = YoloModel(model_path, task=os.environ['TASK_TYPE'])
             elif not use_default_model:
                 self.model = YoloModel(os.environ['YOLO_MODEL_PATH'], task=os.environ['TASK_TYPE'])
-                print('loaded', os.environ['YOLO_MODEL_PATH'])
+                logger.info(f"loaded model: {os.environ['YOLO_MODEL_PATH']}")
             else:
                 self.model = YoloModel(os.environ['YOLO_PRETRAINED_MODEL_PATH'], task=os.environ['TASK_TYPE'])
-                print('loaded', os.environ['YOLO_PRETRAINED_MODEL_PATH'])
+                logger.info(f"loaded model: {os.environ['YOLO_PRETRAINED_MODEL_PATH']}")
         elif model_type == 'UNET':
             self.model_type = 'UNET'
             self.model = UnetModel()
@@ -312,8 +337,10 @@ class ODaSModel:
                 self.model.load(os.environ['UNET_MODEL_PATH'])
         else:
             raise TypeError("no such model")
+        logger.info('load_model method successfully executed')
 
     def predict_dataset(self, path_to_dataset: str = None, model_type: str = 'YOLO'):
+        logger.info('started predict_dataset method')
         if path_to_dataset is None:
             path_to_dataset = os.environ['PROCESSED_FRAMES_FOLDER']
         if model_type == 'YOLO':
@@ -322,8 +349,10 @@ class ODaSModel:
             pass
         else:
             raise TypeError("no such model")
+        logger.info('predict_dataset method successfully executed')
 
     def upscale_predicted_images(self):
+        logger.info('started upscale_predicted_images method')
         image_full_paths = [os.path.join(os.environ['PREDICTED_DATA_PATH'], f) for f in os.listdir(os.environ['PREDICTED_DATA_PATH']) if f.endswith(os.environ['FRAMES_EXTENSION'])]
 
         for path in image_full_paths:
@@ -331,11 +360,13 @@ class ODaSModel:
             resized_image = cv2.resize(cv2.imread(path, cv2.IMREAD_COLOR), (int(os.environ['VIDEO_FRAME_WIDTH']), int(os.environ['VIDEO_FRAME_HEIGHT'])),
                                        interpolation = cv2.INTER_AREA)
             cv2.imwrite(path, resized_image)
+        logger.info('upscale_predicted_images method successfully executed')
 
     def calculate_polygon_area(self, xs, ys):
         return 0.5 * np.abs(np.dot(xs, np.roll(ys, 1)) - np.dot(ys, np.roll(xs, 1)))
 
     def handle_file(self, filepath, stream=False):
+        logger.info(f'started handle_file method, file: {filepath}')
         f = open(filepath, "r")
         lines = f.readlines()
 
@@ -373,9 +404,11 @@ class ODaSModel:
             'best_line_coords' : best_line_coords
         })
 
+        logger.info(f'handle_file method successfully executed')
         return res
 
     def handle_labels_dir(self, dirpath):
+        logger.info('started handle_labels_dir method')
         res = []
         onlyfiles = [f for f in listdir(dirpath) if isfile(join(dirpath, f))]
 
@@ -388,14 +421,17 @@ class ODaSModel:
             else:
                 raise FileNotFoundError('label exists, image is not')
             res.append(fileres)
-
+        logger.info('handle_labels_dir method successfully executed')
         return res
 
     def add_markups(self, markups):
+        logger.info(f"started add_markups method")
         for markup in markups:
             self.add_markup(markup)
+        logger.info('add_markups method successfully executed')
 
     def add_markup(self, markup, stream=False):
+        logger.info(f"started add_markup method {markup['image_path']}")
         dpi = 10
         if stream:
             w = int(os.environ['VIDEO_FRAME_WIDTH']) / (dpi * 10)
@@ -418,12 +454,16 @@ class ODaSModel:
         ax.plot(x, y, color="white", linewidth=2)
         ax.imshow(data, aspect='auto')
         fig.savefig(markup['image_path'], dpi=dpi * 10)
+        logger.info('add_markups method successfully executed')
 
     def proceed_info(self):
+        logger.info(f"started proceed_info method")
         markups = self.handle_labels_dir(os.path.join(os.environ['PREDICTED_DATA_PATH'], 'labels'))
         self.add_markups(markups)
+        logger.info(f"proceed_info method successfully executed")
 
     def predict_video(self, path_to_video: str = 'C:/Users/Acer/Machine Learning/ODaS/clodding_train.mp4', model_type: str = 'YOLO', process: bool = False, predict_on_resized: bool = True, use_default_model: bool = False, model_path: str = None):
+        logger.info(f"started predict_video method")
         # model = ODaSModel(model_type)
         self.split_video_into_frames(path_to_video)
         self.change_frames(process=process, resize=predict_on_resized)
@@ -434,9 +474,10 @@ class ODaSModel:
         self.upscale_predicted_images()
         self.convert_frames_into_video()
         self.clear_cache()
+        logger.info(f"predict_video method successfully executed")
 
     def realtime_detection(self, path_to_video: str, process: bool = True, model_type: str = 'YOLO', use_default_model: bool = False, model_path: str = None):
-
+        logger.info(f"started realtime_detection method")
         if path_to_video is None:
             path_to_video = os.environ['PATH_TO_VIDEO']
 
@@ -477,8 +518,10 @@ class ODaSModel:
                     # cv2.destroyAllWindows();
                     cv2.destroyAllWindows()
                     self.clear_cache()
+                    logger.info(f"realtime_detection method finished by user")
                     break
             else:
+                logger.info(f"realtime_detection detected all images")
                 break
 
 
@@ -486,29 +529,34 @@ class CliWrapper(object):
     def __init__(self):
         self.segmentator = ODaSModel()
         self.segmentator.setup_env()
+        logger.info(f"CliWrapper object inited")
 
     def train(self, dataset: str = None, model_type: str = 'YOLO', batch_size: int = 4, n_epochs: int = 10):
         self.segmentator.train(dataset, model_type, batch_size, n_epochs)
         print(f"Model saved to {os.environ['YOLO_CUSTOM_TRAIN_MODELS_FOLDER_PATH']}")
+        logger.info(f"Model saved to {os.environ['YOLO_CUSTOM_TRAIN_MODELS_FOLDER_PATH']}")
 
     def evaluate(self, dataset: str = None, model_type: str = 'YOLO', use_default_model: bool = False, model_path: str = None):
         res = self.segmentator.evaluate(dataset, model_type, use_default_model, model_path)
-        print("Results:", res)
+        print(f"Model evaluated, results: {res}")
+        logger.info(f"Model evaluated, results: {res}")
 
     def convert(self, video: str = None, model_type: str = 'YOLO', process: bool = False, predict_on_resized: bool = True, use_default_model: bool = False, model_path: str = None):
         self.segmentator.predict_video(video, model_type, process, predict_on_resized, use_default_model, model_path)
         print(f"Video saved to {os.environ['OUTPUT_FOLDER']}")
+        logger.info(f"Video saved to {os.environ['OUTPUT_FOLDER']}")
 
     def demo(self, video: str = None, model_type: str = 'YOLO', process: bool = True, use_default_model: bool = False, model_path: str = None):
         self.segmentator.realtime_detection(video, process, model_type, use_default_model, model_path)
         self.segmentator.clear_cache()
-        print(f"Demo finished")
+        logger.info(f"Demo finished")
 
     def load(self, model_type: str = 'YOLO', model_path: str = None, use_default_model: bool = False):
         self.segmentator.setup_env()
         self.segmentator.load_model(model_type=model_type, use_default_model=use_default_model, model_path=model_path)
         self.segmentator.clear_cache()
         print(f"Successfully loaded {model_type} model")
+        logger.info(f"Successfully loaded {model_type} model")
 
 
 if __name__ == "__main__":
@@ -516,4 +564,3 @@ if __name__ == "__main__":
     to start support of CLI commands"""
 
     fire.Fire(CliWrapper)
-    # logger.info('fire\' CliWrapper is running')
