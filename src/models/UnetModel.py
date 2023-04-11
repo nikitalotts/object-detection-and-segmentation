@@ -25,7 +25,7 @@ class UnetModel(BaseModel):
         self.device = None
 
     def train(self, data: str, imgsz: int, epochs: int, batch: int):
-
+        self.__load_data(data)
         train_losses = []
         valid_losses = []
         metric_scores = []
@@ -75,7 +75,7 @@ class UnetModel(BaseModel):
             toc = time()
             print('finished valid phase;', end=' ')
             # metric score
-            epoch_metric_score = self.score_model_by_metric(self.estimator, self.iou, self.train_data)
+            epoch_metric_score = self.__score_model_by_metric(self.estimator, self.__iou, self.train_data)
             metric_scores.append(epoch_metric_score)
             toc = time()
             print('finished metric score phase;', end=' ')
@@ -91,7 +91,7 @@ class UnetModel(BaseModel):
             }
             return res
 
-    def score_model_by_metric(self, model, metric, data):
+    def __score_model_by_metric(self, model, metric, data):
         model.eval()  # testing mode
         scores = 0
         for x_batch, y_label in data:
@@ -113,10 +113,10 @@ class UnetModel(BaseModel):
         """"""
         pass
 
-    def init_optimizer(self):
+    def __init_optimizer(self):
         self.optimizer = torch.optim.AdamW(self.estimator.parameters(), lr=0.001, weight_decay=0.05)
 
-    def init_scheduler(self):
+    def __init_scheduler(self):
         self.scheduler = torch.optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=[25, 50, 75, 100], gamma=0.75)
 
     def loss(self, y_pred, y_real, eps=1e-8, gamma=2):
@@ -133,7 +133,7 @@ class UnetModel(BaseModel):
     def save_model(self, model_path: str):
         torch.save(self.estimator, model_path)
 
-    def select_device(self):
+    def __select_device(self):
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         if self.estimator is not None:
             self.estimator.to(self.device)
@@ -143,11 +143,11 @@ class UnetModel(BaseModel):
             self.estimator = UNet()
         if model_path is not None:
             self.estimator.load_state_dict(torch.load(model_path))
-        self.init_optimizer()
-        self.init_scheduler()
-        self.select_device()
+        self.__init_optimizer()
+        self.__init_scheduler()
+        self.__select_device()
 
-    def iou(self, outputs: torch.Tensor, labels: torch.Tensor):
+    def __iou(self, outputs: torch.Tensor, labels: torch.Tensor):
         outputs = outputs.squeeze(1).byte()  # BATCH x 1 x H x W => BATCH x H x W
         labels = labels.squeeze(1).byte()
         smooth = 1e-8
@@ -156,7 +156,7 @@ class UnetModel(BaseModel):
         iou = (intersection + smooth) / (union + smooth)  # We smooth our devision to avoid 0/0
         return iou
 
-    def load_data(self, path_to_dataset: str, batch_size: int = 25):
+    def __load_data(self, path_to_dataset: str, batch_size: int = 25):
         images = []
         masks = []
 
