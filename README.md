@@ -11,9 +11,15 @@ The project uses two types of models: [Ultralytics YOLOv8](https://ultralytics.c
 
 ##  Installation
 
-The project does not require installation, just download and unpack the files of this repository*.
+The project does not require installation, just download, unpack the files of this repository* and install requirements**.
 
 \* *the repository does not contain the datasets on which the model was trained, if you want to use them, then download the archive from [here](https://drive.google.com/file/d/1F05QOevK_YU8RHaHMhTfhWvKKn_m24uV/view?usp=share_link) and unpack it to the root folder of the project*
+
+\** Run following command in shell:
+
+``` 
+$ pip install -r requirements.txt
+```
 
 ## User manual
 
