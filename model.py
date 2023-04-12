@@ -20,46 +20,71 @@ from src.logger import logger
 
 
 class ODaSModel:
+    """
+    Object detection and segmentation system class
+    """
+
     def __init__(self):
         logger.info('started ODaSModel instance init')
         self.model = None
         logger.info('finished ODaSModel instance init')
 
     def setup_env(self):
+        """Method that setup environment for further work of system
+
+        Parameters
+        ----------
+        """
+
         logger.info('started venv setup')
+
+        # folders
         os.environ['PATH_TO_VIDEO'] = 'C:/Users/Acer/Machine Learning/ODaS/clodding_train.mp4'
         os.environ['PROJECT_FOLDER']  = os.path.dirname(os.path.dirname(os.path.abspath('__file__'))) + '\\ODaS'
         os.environ['INPUT_FRAMES_FOLDER'] = os.path.join(os.environ['PROJECT_FOLDER'], '.input_frames')
         os.environ['PROCESSED_FRAMES_FOLDER'] = os.path.join(os.environ['PROJECT_FOLDER'], '.processed_frames')
         os.environ['OUTPUT_FOLDER'] = os.path.join(os.environ['PROJECT_FOLDER'], 'outputs')
-        os.environ['FRAMES_EXTENSION'] = '.jpg'
-        os.environ['CONVERT_BRIGHTNESS'] = str(100)
-        os.environ['CONVERT_CONTRAST'] = str(65)
-        os.environ['CONVERT_SHARPENING_CYCLE'] = str(1)
+
+        # train settings
         os.environ['TASK_TYPE'] = 'segment'
         os.environ['N_EPOCHS'] = str(10)
         os.environ['BATCH_SIZE'] = str(4)
         os.environ['TRAIN_IMAGE_SIZE'] = str(640)
+
+        # input video settings
         os.environ['IMAGE_SIZE'] = str(640)
+        os.environ['FRAMES_EXTENSION'] = '.jpg'
+        os.environ['CONVERT_BRIGHTNESS'] = str(100)
+        os.environ['CONVERT_CONTRAST'] = str(65)
+        os.environ['CONVERT_SHARPENING_CYCLE'] = str(1)
         os.environ['FPS'] = '5.0'
+
+        # models settings
+
+        # YOLO settings
         os.environ['YOLO_MODEL_PATH'] = os.path.join(os.environ['PROJECT_FOLDER'], './src/models_store/yolo/seg_640_n.pt')
-        os.environ['UNET_MODEL_PATH'] = os.path.join(os.environ['PROJECT_FOLDER'], './src/models_store/unet/unet.pth')
         os.environ['YOLO_PRETRAINED_MODEL_TYPE'] = 'yolov8n-seg.pt'
         os.environ['YOLO_PRETRAINED_MODEL_PATH'] = os.path.join(os.environ['PROJECT_FOLDER'], f'./src/models_store/yolo/{os.environ["YOLO_PRETRAINED_MODEL_TYPE"]}')
-        os.environ['UNET_PRETRAINED_MODEL_PATH'] = os.path.join(os.environ['PROJECT_FOLDER'], f'./src/models_store/unet/unet_trained.pth')
         os.environ['YOLO_TRAIN_DATA_PATH'] = os.path.join(os.environ['PROJECT_FOLDER'], './datasets/yolo/data.yaml')
         os.environ['YOLO_RUNS_FOLDER_PATH'] = os.path.join(os.environ['PROJECT_FOLDER'], './runs')
         os.environ['YOLO_CUSTOM_TRAIN_MODEL_PATH'] = os.path.join(os.environ['YOLO_RUNS_FOLDER_PATH'], f'./{os.environ["TASK_TYPE"]}/train/weights/best.pt')
         os.environ['YOLO_CUSTOM_TRAIN_MODELS_FOLDER_PATH'] = os.path.join(os.environ['OUTPUT_FOLDER'], './user_models')
         os.environ['PREDICTED_DATA_PATH'] = os.path.join(os.environ['PROJECT_FOLDER'], 'runs/segment/predict')
         os.environ['PREDICTED_LABELS_PATH'] = os.path.join(os.environ['PROJECT_FOLDER'], 'runs/segment/predict/labels')
+
+        # UNET settings
         os.environ['UNET_TRAIN_DATA_PATH'] = os.path.join(os.environ['PROJECT_FOLDER'], './datasets/coco/result.json')
+        os.environ['UNET_MODEL_PATH'] = os.path.join(os.environ['PROJECT_FOLDER'], './src/models_store/unet/unet.pth')
+        os.environ['UNET_PRETRAINED_MODEL_PATH'] = os.path.join(os.environ['PROJECT_FOLDER'], f'./src/models_store/unet/unet_trained.pth')
+
+        # temp files and folders
         os.environ['TEMP_FOLDER'] = os.path.join(os.environ['PROJECT_FOLDER'], './.temp')
         os.environ['TEMP_IMAGE_NAME'] = 'frame'
         os.environ['TEMP_IMAGE_FILE'] = os.path.join(os.environ['TEMP_FOLDER'], f"./{os.environ['TEMP_IMAGE_NAME']}{os.environ['FRAMES_EXTENSION']}")
         os.environ['TEMP_LABEL_FILE'] = os.path.join(os.environ['PREDICTED_LABELS_PATH'], f"./{os.environ['TEMP_IMAGE_NAME']}.txt")
         os.environ['PREDICTED_IMAGE_PATH'] = os.path.join(os.environ['PREDICTED_DATA_PATH'], f"./{os.environ['TEMP_IMAGE_NAME']}{os.environ['FRAMES_EXTENSION']}")
 
+        # Check and create unexisting folders
         isExist = os.path.exists(os.environ['INPUT_FRAMES_FOLDER'])
         if not isExist:
             os.makedirs(os.environ['INPUT_FRAMES_FOLDER'])
@@ -79,6 +104,14 @@ class ODaSModel:
         logger.info('finished venv setup')
 
     def __get_capture(self, path_to_video: str):
+        """Method that load video from given path and add information about it
+
+        Parameters
+        ----------
+
+        path_to_video: str, path to video
+        """
+
         logger.info('started getting capture')
         capture = cv2.VideoCapture(path_to_video)
         os.environ['VIDEO_EXTENSION'] = os.path.splitext(path_to_video)[1]  #
@@ -92,6 +125,14 @@ class ODaSModel:
         return capture
 
     def __split_video_into_frames(self, path_to_video):
+        """Method that load video and split it into frams
+
+        Parameters
+        ----------
+
+        path_to_video: str, path to video
+        """
+
         logger.info('started splitting video into frames')
         if not os.path.exists(path_to_video):
             raise FileExistsError('Invalid path to video file')
@@ -108,6 +149,12 @@ class ODaSModel:
         logger.info('successfully finished splitting video into frames')
 
     def __convert_frames_into_video(self):
+        """Method that convert images in folder into video
+
+        Parameters
+        ----------
+        """
+
         logger.info('started converting video into frames')
         if not os.path.exists(os.environ['PREDICTED_DATA_PATH']):
             raise NotADirectoryError("No such dir")
@@ -124,6 +171,12 @@ class ODaSModel:
         return save_path
 
     def clear_cache(self):
+        """Method that delete all temporary folders
+
+        Parameters
+        ----------
+        """
+
         logger.info('started deleting temp files and folders')
         if os.path.exists(os.environ['INPUT_FRAMES_FOLDER']):
             shutil.rmtree(os.environ['INPUT_FRAMES_FOLDER'])
@@ -138,7 +191,21 @@ class ODaSModel:
             shutil.rmtree(os.environ['YOLO_RUNS_FOLDER_PATH'])
         logger.info('successfully finished deleting temp files and folders')
 
-    def __apply_brightness_contrast_sharpening(self, input_img, brightness = 0, contrast = 0, sharp_cyc=1, prod=False, process=True, resize=True):
+    def __apply_brightness_contrast_sharpening(self, input_img, brightness=0, contrast=0, sharp_cyc=1, prod=False, process=True, resize=True):
+        """Method that add effect on frame
+
+        Parameters
+        ----------
+
+        input_img: cv2.image. Image to convert
+        brightness: int (default: 0). Level of brightness
+        contrast: int (default: 0). Level of contrast
+        sharp_cyc: int (default: 1). Amount of image-sharpen cycles
+        prod: bool (default: False). Is model use this function in production mode
+        process: bool (default: False). Are effect need to be applied.
+        resize: bool (default: True). Is it needed to resize image
+        """
+
         logger.info('started adding filters to image')
         if not process:
             if resize:
@@ -187,6 +254,15 @@ class ODaSModel:
             return buf
 
     def __apply_sharpen(self, img, n=1):
+        """Method that sharpen image
+
+        Parameters
+        ----------
+
+        img: cv2.image. Image to convert
+        n: int (default: 1). Amount of image-sharpen cycles
+        """
+
         logger.info('started sharpening of image')
         sharpen_filter=np.array([[-1,-1,-1],
                                  [-1,9,-1],
@@ -201,6 +277,16 @@ class ODaSModel:
         return sharp_image
 
     def __change_frames(self, process=True, resize=True):
+        """Method that change input frames
+
+        Parameters
+        ----------
+
+        img: cv2.image. Image to convert
+        process: bool (default: True). Is it needed to add effects on frame
+        resize: bool (default: True). Is it needed to add resize frames
+        """
+
         logger.info('started changing frames method')
         input_frames_folder = os.environ['INPUT_FRAMES_FOLDER']
         output_dir = os.environ['PROCESSED_FRAMES_FOLDER']
@@ -234,6 +320,15 @@ class ODaSModel:
     #     logger.info('proceed_video method successfully executed')
 
     def __get_dataset_yaml_file(self, path_to_dataset):
+        """Method that load .yaml file from folder
+
+        Parameters
+           ----------
+
+        path_to_dataset: str, path to dataset
+        """
+
+
         logger.info('started __get_dataset_yaml_file method')
         yaml_files = [f for f in os.listdir(path_to_dataset) if f.endswith('.yaml')]
         if yaml_files:
@@ -261,6 +356,18 @@ class ODaSModel:
         logger.info('__save_model method successfully executed')
 
     def train(self, path_to_dataset: str = None, model_type: str = 'YOLO', batch_size: int = 4, n_epochs: int = 10):
+        """
+        Method used to train new model
+
+        Parameters:
+            dataset: str; by default: None. Path to dataset which will be used in training. If None model will use standart dataset.
+            model_type: str; be default: 'YOLO'. Model type name which model will user, current possible values are 'YOLO' or 'UNET'.
+            batch_size: int; by default: 4. Amount of images in batch.
+            n_epochs: int; by default: 10. Amount of epochs in train cycle.
+
+        return: new model file stored in ./outputs/user_models
+        """
+
         logger.info('started train method')
         if model_type == 'YOLO':
             if self.model is None:
@@ -283,6 +390,18 @@ class ODaSModel:
         logger.info('train method successfully executed')
 
     def evaluate(self, path_to_dataset: str = None, model_type: str = 'YOLO', use_default_model: bool = False, model_path: str = None):
+        """
+        Method evaluate model's metric on given dataset's validation images
+
+        Parameters:
+            dataset: str; by default: None. Path to dataset which will be used in training. If None model will use standart dataset.
+            model_type: str; be default: 'YOLO'. Model type name which model will user, current possible values are 'YOLO' or 'UNET'.
+            use_default_model: bool; by default: False. If true model will use standart pretrained YOLO model, else will use custom model specially trained for given task.
+            model_path: str; by default: None. Path to YOLO model which will use in evaluation. If value is presented then use_default_model parameter has no effect.
+
+        return: print in console and log in file evaluated metrics' results
+        """
+
         logger.info('started evaluate method')
         if model_type == 'YOLO':
             if model_path is not None:
@@ -313,6 +432,16 @@ class ODaSModel:
         logger.info('evaluate method successfully executed')
 
     def load_model(self, model_type: str = 'YOLO', use_default_model: bool = False, model_path: str = None):
+        """Method that load model
+
+        Parameters
+           ----------
+
+        model_type: str, type of model to be loaded. Values: ['YOLO', 'UNET']
+        use_default_model: bool. Use standard pretrained YOLO model
+        model_path: str, path to model
+        """
+
         logger.info('started load_model method')
         if model_type == 'YOLO':
             self.model_type = 'YOLO'
@@ -339,6 +468,15 @@ class ODaSModel:
         logger.info('load_model method successfully executed')
 
     def __predict_dataset(self, path_to_dataset: str = None, model_type: str = 'YOLO'):
+        """Method that predict images in folder
+
+        Parameters
+           ----------
+
+        path_to_dataset: str, path to dataset
+        model_type: str. Values in ['YOLO', 'UNET']
+        """
+
         logger.info('started __predict_dataset method')
         if path_to_dataset is None:
             path_to_dataset = os.environ['PROCESSED_FRAMES_FOLDER']
@@ -351,6 +489,12 @@ class ODaSModel:
         logger.info('__predict_dataset method successfully executed')
 
     def __upscale_predicted_images(self):
+        """Method that upscale images
+
+        Parameters
+           ----------
+        """
+
         logger.info('started __upscale_predicted_images method')
         image_full_paths = [os.path.join(os.environ['PREDICTED_DATA_PATH'], f) for f in os.listdir(os.environ['PREDICTED_DATA_PATH']) if f.endswith(os.environ['FRAMES_EXTENSION'])]
 
@@ -362,9 +506,27 @@ class ODaSModel:
         logger.info('__upscale_predicted_images method successfully executed')
 
     def __calculate_polygon_area(self, xs, ys):
+        """Method that use Shoelace formula to calculate polygon formula
+
+        Parameters
+           ----------
+
+        xs: np.darray, array of X coordinates
+        xy: np.darray. array of Y coordinates
+        """
+
         return 0.5 * np.abs(np.dot(xs, np.roll(ys, 1)) - np.dot(ys, np.roll(xs, 1)))
 
     def __handle_file(self, filepath, stream=False):
+        """Method that handle information from yolo label output file
+
+        Parameters
+           ----------
+
+        filepath: str, path to file
+        stream: bool. Use it function in stream or not
+        """
+
         logger.info(f'started __handle_file method, file: {filepath}')
         f = open(filepath, "r")
         lines = f.readlines()
@@ -407,6 +569,14 @@ class ODaSModel:
         return res
 
     def __handle_labels_dir(self, dirpath):
+        """Method that handle yolo output labels folders
+
+        Parameters
+           ----------
+
+        dirpath: str, path to folder
+        """
+
         logger.info('started __handle_labels_dir method')
         res = []
         onlyfiles = [f for f in listdir(dirpath) if isfile(join(dirpath, f))]
@@ -424,12 +594,29 @@ class ODaSModel:
         return res
 
     def __add_markups(self, markups):
+        """Method that add markups to all images
+
+        Parameters
+           ----------
+
+        markups: markups, markups
+        """
+
         logger.info(f"started __add_markups method")
         for markup in markups:
             self.__add_markup(markup)
         logger.info('__add_markups method successfully executed')
 
     def __add_markup(self, markup, stream=False):
+        """Method that add markup to image from it's description
+
+        Parameters
+        ----------
+
+        markups: markups, markups
+        stream: bool (default: False). Is function called from stream
+        """
+
         logger.info(f"started __add_markup method {markup['image_path']}")
         dpi = 10
         if stream:
@@ -456,12 +643,33 @@ class ODaSModel:
         logger.info('__add_markups method successfully executed')
 
     def __proceed_info(self):
+        """Method that add information to all images
+
+        Parameters
+        ----------
+        """
+
         logger.info(f"started __proceed_info method")
         markups = self.__handle_labels_dir(os.path.join(os.environ['PREDICTED_DATA_PATH'], 'labels'))
         self.__add_markups(markups)
         logger.info(f"__proceed_info method successfully executed")
 
     def predict_video(self, path_to_video: str = 'C:/Users/Acer/Machine Learning/ODaS/clodding_train.mp4', model_type: str = 'YOLO', process: bool = False, predict_on_resized: bool = True, use_default_model: bool = False, model_path: str = None):
+        """
+        Method that get video file as input and detect and segment objects on given video
+
+        Parameters:
+            video: str; by default: None. Path to video file which model will use in detection and segmentation. If None model will use standart saved video.
+            model_type: str; be default: 'YOLO'. Model type name which model will user, current possible values are 'YOLO' or 'UNET'.
+            process: bool; by default: False. If true model will add brighness, contrast and sharpness to every frame of the given video, else model won't change frames
+            predict_on_resized: bool; by default: False. If true model will resize input frames and predict on these resized frames, else model will predict on frames of given size
+            use_default_model: bool; by default: False. If true model will use standart pretrained YOLO model, else will use custom model specially trained for given task.
+            model_path: str; by default: None. Path to YOLO model which will use in evaluation. If value is presented then use_default_model parameter has no effect
+
+        return: converted video with detected and segmented object which stored in ./outputs/{video_name}
+        """
+
+
         logger.info(f"started predict_video method")
         # model = ODaSModel(model_type)
         self.__split_video_into_frames(path_to_video)
@@ -476,6 +684,19 @@ class ODaSModel:
         logger.info(f"predict_video method successfully executed")
 
     def realtime_detection(self, path_to_video: str, process: bool = True, model_type: str = 'YOLO', use_default_model: bool = False, model_path: str = None):
+        """
+        Method that get video file as input and start stream on object detection and segmentation on video.
+
+        Parameters:
+            video: str; by default: None. Path to video file which model will use in detection and segmentation.  If None model will use standart saved video.
+            model_type: str; be default: 'YOLO'. Model type name which model will user, current possible values are 'YOLO' or 'UNET'.
+            process: bool; by default: True. If true model will add brighness, contrast and sharpness to every frame of the given video, else model won't change frames
+            use_default_model: bool; by default: False. If true model will use standart pretrained YOLO model, else will use custom model specially trained for given task.
+            model_path: str; by default: None. Path to YOLO model which will use in evaluation. If value is presented then use_default_model parameter has no effect
+
+        return: return nothing
+        """
+
         logger.info(f"started realtime_detection method")
         if path_to_video is None:
             path_to_video = os.environ['PATH_TO_VIDEO']
@@ -525,27 +746,83 @@ class ODaSModel:
 
 
 class CliWrapper(object):
+    """
+    This is a wrapper class for ODasModel model instance
+    to use model with CLI commands
+    """
+
     def __init__(self):
         self.segmentator = ODaSModel()
         self.segmentator.setup_env()
         logger.info(f"CliWrapper object inited")
 
     def train(self, dataset: str = None, model_type: str = 'YOLO', batch_size: int = 4, n_epochs: int = 10):
+        """
+        Method used to train new model
+
+        Parameters:
+            dataset: str; by default: None. Path to dataset which will be used in training. If None model will use standart dataset.
+            model_type: str; be default: 'YOLO'. Model type name which model will user, current possible values are 'YOLO' or 'UNET'.
+            batch_size: int; by default: 4. Amount of images in batch.
+            n_epochs: int; by default: 10. Amount of epochs in train cycle.
+
+        return: new model file stored in ./outputs/user_models
+        """
+
         self.segmentator.train(dataset, model_type, batch_size, n_epochs)
         print(f"Model saved to {os.environ['YOLO_CUSTOM_TRAIN_MODELS_FOLDER_PATH']}")
         logger.info(f"Model saved to {os.environ['YOLO_CUSTOM_TRAIN_MODELS_FOLDER_PATH']}")
 
     def evaluate(self, dataset: str = None, model_type: str = 'YOLO', use_default_model: bool = False, model_path: str = None):
+        """
+        Method evaluate model's metric on given dataset's validation images
+
+        Parameters:
+            dataset: str; by default: None. Path to dataset which will be used in training. If None model will use standart dataset.
+            model_type: str; be default: 'YOLO'. Model type name which model will user, current possible values are 'YOLO' or 'UNET'.
+            use_default_model: bool; by default: False. If true model will use standart pretrained YOLO model, else will use custom model specially trained for given task.
+            model_path: str; by default: None. Path to YOLO model which will use in evaluation. If value is presented then use_default_model parameter has no effect.
+
+        return: print in console and log in file evaluated metrics' results
+        """
+
         res = self.segmentator.evaluate(dataset, model_type, use_default_model, model_path)
         print(f"Model evaluated, results: {res}")
         logger.info(f"Model evaluated, results: {res}")
 
     def convert(self, video: str = None, model_type: str = 'YOLO', process: bool = False, predict_on_resized: bool = True, use_default_model: bool = False, model_path: str = None):
+        """
+        Method that get video file as input and detect and segment objects on given video
+
+        Parameters:
+            video: str; by default: None. Path to video file which model will use in detection and segmentation. If None model will use standart saved video.
+            model_type: str; be default: 'YOLO'. Model type name which model will user, current possible values are 'YOLO' or 'UNET'.
+            process: bool; by default: False. If true model will add brighness, contrast and sharpness to every frame of the given video, else model won't change frames
+            predict_on_resized: bool; by default: False. If true model will resize input frames and predict on these resized frames, else model will predict on frames of given size
+            use_default_model: bool; by default: False. If true model will use standart pretrained YOLO model, else will use custom model specially trained for given task.
+            model_path: str; by default: None. Path to YOLO model which will use in evaluation. If value is presented then use_default_model parameter has no effect
+
+        return: converted video with detected and segmented object which stored in ./outputs/{video_name}
+        """
+
         self.segmentator.predict_video(video, model_type, process, predict_on_resized, use_default_model, model_path)
         print(f"Video saved to {os.environ['OUTPUT_FOLDER']}")
         logger.info(f"Video saved to {os.environ['OUTPUT_FOLDER']}")
 
     def demo(self, video: str = None, model_type: str = 'YOLO', process: bool = True, use_default_model: bool = False, model_path: str = None):
+        """
+        Method that get video file as input and start stream on object detection and segmentation on video.
+
+        Parameters:
+            video: str; by default: None. Path to video file which model will use in detection and segmentation.  If None model will use standart saved video.
+            model_type: str; be default: 'YOLO'. Model type name which model will user, current possible values are 'YOLO' or 'UNET'.
+            process: bool; by default: True. If true model will add brighness, contrast and sharpness to every frame of the given video, else model won't change frames
+            use_default_model: bool; by default: False. If true model will use standart pretrained YOLO model, else will use custom model specially trained for given task.
+            model_path: str; by default: None. Path to YOLO model which will use in evaluation. If value is presented then use_default_model parameter has no effect
+
+        return: return nothing
+        """
+
         self.segmentator.realtime_detection(video, process, model_type, use_default_model, model_path)
         self.segmentator.clear_cache()
         logger.info(f"Demo finished")

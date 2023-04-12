@@ -9,20 +9,27 @@ from abc import ABC, abstractmethod
 class BaseModel(ABC):
     def __init__(self):
         pass
-        # For svd-based model - dim of latent vectors
-        # for non-svd-based model can be None
 
     @abstractmethod
     def train(self, data: str, imgsz: int, epochs: int, batch: int):
-        """"""
+        """
+        abstract method for train function
+        """
+
         pass
 
     @abstractmethod
     def val(self, data: str, imgsz: int):
-        """"""
+        """
+        abstract method for evaluate function
+        """
+
         pass
 
     @abstractmethod
     def predict(self, source: str):
-        """"""
+        """
+        abstract method for predict function
+        """
+
         pass

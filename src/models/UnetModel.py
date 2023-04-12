@@ -25,6 +25,8 @@ class UnetModel(BaseModel):
         self.device = None
 
     def train(self, data: str, imgsz: int, epochs: int, batch: int):
+        """Train method"""
+
         self.__load_data(data)
         train_losses = []
         valid_losses = []
@@ -92,6 +94,8 @@ class UnetModel(BaseModel):
             return res
 
     def __score_model_by_metric(self, model, metric, data):
+        """Use metric method"""
+
         model.eval()  # testing mode
         scores = 0
         for x_batch, y_label in data:
@@ -106,20 +110,28 @@ class UnetModel(BaseModel):
         return scores / len(data)
 
     def val(self, data: str, imgsz: int):
-        """"""
+        """Evaluate method"""
+
         pass
 
     def predict(self, source: str):
-        """"""
+        """Predict method"""
+
         pass
 
     def __init_optimizer(self):
+        """Init optimizer method"""
+
         self.optimizer = torch.optim.AdamW(self.estimator.parameters(), lr=0.001, weight_decay=0.05)
 
     def __init_scheduler(self):
+        """Init scheduler method"""
+
         self.scheduler = torch.optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=[25, 50, 75, 100], gamma=0.75)
 
     def loss(self, y_pred, y_real, eps=1e-8, gamma=2):
+        """Loss function method"""
+
         # focal loss
         # https://arxiv.org/pdf/1708.02002.pdf
         sigmoid = nn.Sigmoid()
@@ -131,14 +143,20 @@ class UnetModel(BaseModel):
         return loss
 
     def save_model(self, model_path: str):
+        """Save model method"""
+
         torch.save(self.estimator, model_path)
 
     def __select_device(self):
+        """Select device method"""
+
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         if self.estimator is not None:
             self.estimator.to(self.device)
 
     def load(self, model_path: str):
+        """Load model method"""
+
         if self.estimator is None:
             self.estimator = UNet()
         if model_path is not None:
@@ -148,6 +166,8 @@ class UnetModel(BaseModel):
         self.__select_device()
 
     def __iou(self, outputs: torch.Tensor, labels: torch.Tensor):
+        """Metric method"""
+
         outputs = outputs.squeeze(1).byte()  # BATCH x 1 x H x W => BATCH x H x W
         labels = labels.squeeze(1).byte()
         smooth = 1e-8
@@ -157,6 +177,8 @@ class UnetModel(BaseModel):
         return iou
 
     def __load_data(self, path_to_dataset: str, batch_size: int = 25):
+        """Load data to dataset method"""
+
         images = []
         masks = []
 

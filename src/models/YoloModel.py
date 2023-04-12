@@ -9,11 +9,15 @@ class YoloModel(BaseModel):
         logger.info(f"YOLO inited: model_path: {model_path}; task: {task}")
 
     def train(self, data: str, imgsz: int, epochs: int, batch: int):
+        """Train method"""
+
         logger.info(f"YOLO started train")
         self.estimator.train(data=data, imgsz=imgsz, epochs=epochs, batch=batch)
         logger.info(f"YOLO finished train")
 
     def val(self, data: str, imgsz: int):
+        """Evaluate method"""
+
         logger.info(f"YOLO started validation")
         results = self.estimator.val(data=data, imgsz=imgsz)
         output = {
@@ -26,6 +30,8 @@ class YoloModel(BaseModel):
         return output
 
     def predict(self, source: str, task: str, save: bool, save_txt: bool, stream: bool):
+        """Predict method"""
+
         logger.info(f"YOLO started prediction: {source}")
         generators = self.estimator.predict(source=source, task=task, save=save, save_txt=save_txt, stream=stream)
         for _ in generators:
